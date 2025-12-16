@@ -4,41 +4,40 @@
     <title>Team Check-In</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { font-family: sans-serif; padding: 20px; background-color: #f4f4f9; text-align: center; }
-        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 350px; margin: auto; }
-        input, select { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
-        button { background-color: #28a745; color: white; border: none; padding: 15px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; }
-        button:disabled { background-color: #ccc; }
-        #status { margin-top: 15px; font-size: 0.9em; color: #555; }
-        .hidden { display: none; }
-        .device-tag { font-size: 0.7em; color: #888; margin-top: 5px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background-color: #f0f2f5; text-align: center; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 380px; margin: auto; }
+        h2 { color: #333; margin-bottom: 5px; }
+        label { text-align: left; display: block; font-size: 0.9em; color: #555; margin-top: 10px; font-weight: 600; }
+        input, textarea { width: 100%; padding: 12px; margin: 5px 0 10px 0; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+        textarea { resize: vertical; height: 80px; }
+        button { background-color: #007bff; color: white; border: none; padding: 14px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: 600; margin-top: 15px; }
+        button:disabled { background-color: #a0a0a0; cursor: not-allowed; }
+        button:hover:not(:disabled) { background-color: #0056b3; }
+        #status { margin-top: 15px; font-size: 0.9em; color: #555; min-height: 20px; }
+        .device-tag { font-size: 0.75em; color: #666; background: #e9ecef; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-bottom: 15px; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2>Team Tracker</h2>
+    <h2>Daily Activity Tracker</h2>
     
-    <div id="loginSection">
-        <label>Select Identity:</label>
-        <select id="nameInput">
-            <option value="" disabled selected>Select Name</option>
-            <option value="Amit">Amit</option>
-            <option value="Priya">Priya</option>
-            <option value="Rahul">Rahul</option>
-        </select>
-        
-        <input type="password" id="pinInput" placeholder="Enter Secret PIN">
-        <button onclick="saveAndCheckIn()">Save & Check In</button>
-    </div>
+    <div class="device-tag">Device ID: <span id="dispDeviceId">Generating...</span></div>
 
-    <div id="actionSection" class="hidden">
-        <h3 id="welcomeMsg"></h3>
-        <p class="device-tag">Device ID: <span id="dispDeviceId">Loading...</span></p>
-        <button onclick="getGPS()" id="mainBtn">Share Current Location</button>
-        <br><br>
-        <small style="color:blue; cursor:pointer;" onclick="logout()">Not you? Logout</small>
-    </div>
+    <form onsubmit="event.preventDefault(); getGPS();">
+        
+        <label>Your Name</label>
+        <input type="text" id="nameInput" placeholder="Enter full name" required>
+
+        <label>Current Location</label>
+        <input type="text" id="manualLocation" placeholder="e.g. Client Site, Office, Home" required>
+        
+        <label>Work Status / Description</label>
+        <textarea id="workStatus" placeholder="e.g. Meeting started, Site inspection done..." required></textarea>
+        
+        <button type="submit" id="mainBtn">Submit Check-In</button>
+    
+    </form>
 
     <p id="status"></p>
 </div>
@@ -47,87 +46,74 @@
     // ------------------------------------------
     // YOUR SCRIPT URL
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxsute8rniNBXKPt3jGbVtRszs_oNY5khnYaTvUabcKRrcmxHiuR7w5yt8Vy88Jc7DV/exec"; 
-    
     // ------------------------------------------
 
-    // 1. IMMEDIATE EXECUTION: Generate ID before page even finishes loading
+    // 1. Initialize Device ID immediately
     (function initializeDeviceID() {
-        if (!localStorage.getItem("device_id")) {
-            var uniqueId = "DEV-" + Math.floor(Math.random() * 10000000);
-            localStorage.setItem("device_id", uniqueId);
+        var existingId = localStorage.getItem("device_id");
+        if (!existingId) {
+            existingId = "DEV-" + Math.floor(Math.random() * 10000000);
+            localStorage.setItem("device_id", existingId);
+        }
+        document.getElementById("dispDeviceId").innerText = existingId;
+        
+        // Auto-fill name if previously used (Convenience only)
+        var savedName = localStorage.getItem("last_used_name");
+        if(savedName) {
+            document.getElementById("nameInput").value = savedName;
         }
     })();
 
-    window.onload = function() {
-        var savedName = localStorage.getItem("team_name");
-        var savedPin = localStorage.getItem("team_pin");
-
-        if (savedName && savedPin) {
-            showActionScreen(savedName);
-        }
-    };
-
-    function showActionScreen(name) {
-        document.getElementById("loginSection").classList.add("hidden");
-        document.getElementById("actionSection").classList.remove("hidden");
-        document.getElementById("welcomeMsg").innerText = "Welcome, " + name;
-        
-        // Retrieve and display the ID
-        var devId = localStorage.getItem("device_id");
-        document.getElementById("dispDeviceId").innerText = devId || "Generating...";
-    }
-
-    function saveAndCheckIn() {
-        var name = document.getElementById("nameInput").value;
-        var pin = document.getElementById("pinInput").value;
-
-        if (!name || !pin) { alert("Please fill details"); return; }
-
-        localStorage.setItem("team_name", name);
-        localStorage.setItem("team_pin", pin);
-
-        showActionScreen(name);
-        getGPS();
-    }
-
     function getGPS() {
-        var status = document.getElementById("status");
+        var name = document.getElementById("nameInput").value.trim();
+        var manualLoc = document.getElementById("manualLocation").value.trim();
+        var statusText = document.getElementById("workStatus").value.trim();
+        var statusDisplay = document.getElementById("status");
         var btn = document.getElementById("mainBtn");
-        
-        status.innerHTML = "⏳ Getting Location...";
+
+        if(!name || !manualLoc || !statusText) {
+            alert("Kindly fill all the fields before submitting.");
+            return;
+        }
+
+        // Save name for next time convenience
+        localStorage.setItem("last_used_name", name);
+
+        statusDisplay.innerHTML = "⏳ Acquiring GPS Coordinates...";
         btn.disabled = true;
 
         if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(sendData, (e) => {
-                status.innerHTML = "❌ GPS Error: " + e.message;
-                btn.disabled = false;
-            }, { enableHighAccuracy: true });
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    sendData(position, name, manualLoc, statusText);
+                }, 
+                (e) => {
+                    statusDisplay.innerHTML = "❌ GPS Error: " + e.message;
+                    btn.disabled = false;
+                }, 
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
         } else {
-            status.innerHTML = "❌ Browser not supported.";
+            statusDisplay.innerHTML = "❌ GPS not supported on this browser.";
+            btn.disabled = false;
         }
     }
 
-    function sendData(position) {
-        var status = document.getElementById("status");
-        var name = localStorage.getItem("team_name");
-        var pin = localStorage.getItem("team_pin");
-        
-        // Failsafe: Try to get ID, if missing, generate a new one right now.
+    function sendData(position, name, manualLoc, statusText) {
+        var statusDisplay = document.getElementById("status");
         var deviceId = localStorage.getItem("device_id");
-        if (!deviceId) {
-            deviceId = "DEV-" + Math.floor(Math.random() * 10000000);
-            localStorage.setItem("device_id", deviceId);
-        }
 
         var payload = {
             name: name,
-            pin: pin,
-            device_id: deviceId, // This must match exactly with Google Script logic
+            device_id: deviceId,
             lat: position.coords.latitude,
-            long: position.coords.longitude
+            long: position.coords.longitude,
+            manual_location: manualLoc,
+            work_status: statusText,
+            pin: "N/A" // PIN is removed, sending N/A to maintain script compatibility if needed
         };
 
-        status.innerHTML = "🚀 Verifying Identity & Sending...";
+        statusDisplay.innerHTML = "🚀 Transmitting Data...";
 
         fetch(SCRIPT_URL, {
             method: "POST",
@@ -135,24 +121,19 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
         }).then(() => {
-            status.innerHTML = "✅ Check-in Successful!";
-            status.style.color = "green";
+            statusDisplay.innerHTML = "✅ Check-In Recorded Successfully!";
+            statusDisplay.style.color = "green";
             document.getElementById("mainBtn").disabled = false;
+            
+            // Clear description for fresh entry, keep name/location as they might not change
+            document.getElementById("workStatus").value = "";
         }).catch(e => {
-            status.innerHTML = "❌ Connection Failed.";
+            statusDisplay.innerHTML = "❌ Connection Error. Please try again.";
+            statusDisplay.style.color = "red";
+            document.getElementById("mainBtn").disabled = false;
         });
-    }
-
-    function logout() {
-        localStorage.removeItem("team_name");
-        localStorage.removeItem("team_pin");
-        location.reload();
     }
 </script>
 
 </body>
 </html>
-
-
-
-
