@@ -1,85 +1,142 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Secure Check-In</title>
+    <title>Team Check-In</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 50px 20px; background-color: #f0f2f5; }
-        .card { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
-        button { background-color: #4285F4; color: white; border: none; padding: 15px 30px; font-size: 16px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%; }
+        body { font-family: sans-serif; padding: 20px; background-color: #f4f4f9; text-align: center; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 350px; margin: auto; }
+        input, select { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        button { background-color: #28a745; color: white; border: none; padding: 15px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; }
         button:disabled { background-color: #ccc; }
-        p { margin-top: 15px; color: #555; }
+        #status { margin-top: 15px; font-size: 0.9em; color: #555; }
+        .hidden { display: none; }
+        .device-tag { font-size: 0.7em; color: #888; margin-top: 5px; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2>📍 Secure Team Check-In</h2>
-    <p>Click below to verify your location and identity.</p>
-    <br>
-    <button onclick="getLocation()" id="btn">🚀 Get Location & Open Form</button>
+    <h2>📍 Team Tracker</h2>
+    
+    <div id="loginSection">
+        <label>Select Identity:</label>
+        <select id="nameInput">
+            <option value="" disabled selected>Select Name</option>
+            <option value="Amit">Amit</option>
+            <option value="Priya">Priya</option>
+            <option value="Rahul">Rahul</option>
+        </select>
+        
+        <input type="password" id="pinInput" placeholder="Enter Secret PIN">
+        <button onclick="saveAndCheckIn()">Save & Check In</button>
+    </div>
+
+    <div id="actionSection" class="hidden">
+        <h3 id="welcomeMsg"></h3>
+        <p class="device-tag">Device ID: <span id="dispDeviceId"></span></p>
+        <button onclick="getGPS()" id="mainBtn">📍 Share Current Location</button>
+        <br><br>
+        <small style="color:blue; cursor:pointer;" onclick="logout()">Not you? Logout</small>
+    </div>
+
     <p id="status"></p>
 </div>
 
 <script>
-    // ================= CONFIGURATION =================
-    // 1. Paste the base URL of your form (everything BEFORE the '?')
-    const FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfkcn2dwx-jDcyjWLbxuZluk9qB2M8SRl1y2m2NklkeYrHPEA/viewform";
+    // ------------------------------------------
+    const SCRIPT_URL = "PASTE_YOUR_WEB_APP_URL_HERE"; 
+    // ------------------------------------------
 
-    // 2. Paste the Entry IDs you found in Step 1
-    const LAT_ENTRY_ID = "entry.1679362457";  // Replace with your Latitude ID
-    const LONG_ENTRY_ID = "entry.1195079859"; // Replace with your Longitude ID
-    // =================================================
+    window.onload = function() {
+        // 1. Generate Device ID if it doesn't exist
+        if (!localStorage.getItem("device_id")) {
+            var uniqueId = "DEV-" + Math.floor(Math.random() * 1000000);
+            localStorage.setItem("device_id", uniqueId);
+        }
 
-    function getLocation() {
+        var savedName = localStorage.getItem("team_name");
+        var savedPin = localStorage.getItem("team_pin");
+
+        if (savedName && savedPin) {
+            showActionScreen(savedName);
+        }
+    };
+
+    function showActionScreen(name) {
+        document.getElementById("loginSection").classList.add("hidden");
+        document.getElementById("actionSection").classList.remove("hidden");
+        document.getElementById("welcomeMsg").innerText = "Welcome, " + name;
+        document.getElementById("dispDeviceId").innerText = localStorage.getItem("device_id");
+    }
+
+    function saveAndCheckIn() {
+        var name = document.getElementById("nameInput").value;
+        var pin = document.getElementById("pinInput").value;
+
+        if (!name || !pin) { alert("Please fill details"); return; }
+
+        localStorage.setItem("team_name", name);
+        localStorage.setItem("team_pin", pin);
+
+        showActionScreen(name);
+        getGPS();
+    }
+
+    function getGPS() {
         var status = document.getElementById("status");
-        var btn = document.getElementById("btn");
-
-        status.innerHTML = "⏳ Acquiring GPS Satellites...";
+        var btn = document.getElementById("mainBtn");
+        
+        status.innerHTML = "⏳ Getting Location...";
         btn.disabled = true;
 
         if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(redirectWithData, showError, { enableHighAccuracy: true });
+            navigator.geolocation.getCurrentPosition(sendData, (e) => {
+                status.innerHTML = "❌ GPS Error. Allow Location Access.";
+                btn.disabled = false;
+            }, { enableHighAccuracy: true });
         } else {
-            status.innerHTML = "❌ Geolocation is not supported by this browser.";
+            status.innerHTML = "❌ Browser not supported.";
         }
     }
 
-    function redirectWithData(position) {
-        var lat = position.coords.latitude;
-        var long = position.coords.longitude;
-        
-        // Construct the Google Form URL with parameters
-        var finalUrl = `${FORM_URL}?${LAT_ENTRY_ID}=${lat}&${LONG_ENTRY_ID}=${long}`;
-
-        document.getElementById("status").innerHTML = "✅ Location Found! Redirecting...";
-        
-        // Redirect the user to the form
-        window.location.href = finalUrl;
-    }
-
-    function showError(error) {
+    function sendData(position) {
         var status = document.getElementById("status");
-        var btn = document.getElementById("btn");
+        var name = localStorage.getItem("team_name");
+        var pin = localStorage.getItem("team_pin");
+        var deviceId = localStorage.getItem("device_id"); // Get the unique ID
         
-        switch(error.code) {
-            case error.PERMISSION_DENIED:
-                status.innerHTML = "❌ User denied the request for Geolocation.";
-                break;
-            case error.POSITION_UNAVAILABLE:
-                status.innerHTML = "❌ Location information is unavailable.";
-                break;
-            case error.TIMEOUT:
-                status.innerHTML = "❌ The request to get user location timed out.";
-                break;
-            case error.UNKNOWN_ERROR:
-                status.innerHTML = "❌ An unknown error occurred.";
-                break;
-        }
-        btn.disabled = false;
+        var payload = {
+            name: name,
+            pin: pin,
+            device_id: deviceId,
+            lat: position.coords.latitude,
+            long: position.coords.longitude
+        };
+
+        status.innerHTML = "🚀 Verifying Identity & Sending...";
+
+        fetch(SCRIPT_URL, {
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        }).then(() => {
+            status.innerHTML = "✅ Check-in Successful!";
+            status.style.color = "green";
+            document.getElementById("mainBtn").disabled = false;
+        }).catch(e => {
+            status.innerHTML = "❌ Connection Failed.";
+        });
+    }
+
+    function logout() {
+        // We do NOT clear the device_id on logout, so the phone stays tagged
+        localStorage.removeItem("team_name");
+        localStorage.removeItem("team_pin");
+        location.reload();
     }
 </script>
 
 </body>
 </html>
-
