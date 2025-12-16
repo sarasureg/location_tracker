@@ -34,7 +34,7 @@
 
     <div id="actionSection" class="hidden">
         <h3 id="welcomeMsg"></h3>
-        <p class="device-tag">Device ID: <span id="dispDeviceId"></span></p>
+        <p class="device-tag">Device ID: <span id="dispDeviceId">Loading...</span></p>
         <button onclick="getGPS()" id="mainBtn">📍 Share Current Location</button>
         <br><br>
         <small style="color:blue; cursor:pointer;" onclick="logout()">Not you? Logout</small>
@@ -45,16 +45,19 @@
 
 <script>
     // ------------------------------------------
+    // YOUR SCRIPT URL
     const SCRIPT_URL = "https://script.google.com/a/macros/brainwareuniversity.ac.in/s/AKfycbxsute8rniNBXKPt3jGbVtRszs_oNY5khnYaTvUabcKRrcmxHiuR7w5yt8Vy88Jc7DV/exec"; 
     // ------------------------------------------
 
-    window.onload = function() {
-        // 1. Generate Device ID if it doesn't exist
+    // 1. IMMEDIATE EXECUTION: Generate ID before page even finishes loading
+    (function initializeDeviceID() {
         if (!localStorage.getItem("device_id")) {
-            var uniqueId = "DEV-" + Math.floor(Math.random() * 1000000);
+            var uniqueId = "DEV-" + Math.floor(Math.random() * 10000000);
             localStorage.setItem("device_id", uniqueId);
         }
+    })();
 
+    window.onload = function() {
         var savedName = localStorage.getItem("team_name");
         var savedPin = localStorage.getItem("team_pin");
 
@@ -67,7 +70,10 @@
         document.getElementById("loginSection").classList.add("hidden");
         document.getElementById("actionSection").classList.remove("hidden");
         document.getElementById("welcomeMsg").innerText = "Welcome, " + name;
-        document.getElementById("dispDeviceId").innerText = localStorage.getItem("device_id");
+        
+        // Retrieve and display the ID
+        var devId = localStorage.getItem("device_id");
+        document.getElementById("dispDeviceId").innerText = devId || "Generating...";
     }
 
     function saveAndCheckIn() {
@@ -92,7 +98,7 @@
 
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(sendData, (e) => {
-                status.innerHTML = "❌ GPS Error. Allow Location Access.";
+                status.innerHTML = "❌ GPS Error: " + e.message;
                 btn.disabled = false;
             }, { enableHighAccuracy: true });
         } else {
@@ -104,12 +110,18 @@
         var status = document.getElementById("status");
         var name = localStorage.getItem("team_name");
         var pin = localStorage.getItem("team_pin");
-        var deviceId = localStorage.getItem("device_id"); // Get the unique ID
         
+        // Failsafe: Try to get ID, if missing, generate a new one right now.
+        var deviceId = localStorage.getItem("device_id");
+        if (!deviceId) {
+            deviceId = "DEV-" + Math.floor(Math.random() * 10000000);
+            localStorage.setItem("device_id", deviceId);
+        }
+
         var payload = {
             name: name,
             pin: pin,
-            device_id: deviceId,
+            device_id: deviceId, // This must match exactly with Google Script logic
             lat: position.coords.latitude,
             long: position.coords.longitude
         };
@@ -131,7 +143,6 @@
     }
 
     function logout() {
-        // We do NOT clear the device_id on logout, so the phone stays tagged
         localStorage.removeItem("team_name");
         localStorage.removeItem("team_pin");
         location.reload();
@@ -140,4 +151,3 @@
 
 </body>
 </html>
-
