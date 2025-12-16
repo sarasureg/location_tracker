@@ -1,98 +1,82 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Team Location Check-In</title>
+    <title>Secure Check-In</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { font-family: sans-serif; padding: 20px; max-width: 400px; margin: auto; background-color: #f4f4f9; }
-        .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        h2 { text-align: center; color: #333; }
-        input, select, button { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-        button { background-color: #28a745; color: white; border: none; font-weight: bold; cursor: pointer; }
-        button:hover { background-color: #218838; }
-        #status { text-align: center; margin-top: 10px; font-size: 0.9em; color: #555; }
+        body { font-family: sans-serif; text-align: center; padding: 50px 20px; background-color: #f0f2f5; }
+        .card { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
+        button { background-color: #4285F4; color: white; border: none; padding: 15px 30px; font-size: 16px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%; }
+        button:disabled { background-color: #ccc; }
+        p { margin-top: 15px; color: #555; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>📍 Team Check-In</h2>
-    
-    <label>Name:</label>
-    <select id="name">
-        <option value="" disabled selected>Select your name</option>
-        <option value="Amit">Amit</option>
-        <option value="Priya">Priya</option>
-        <option value="Rahul">Rahul</option>
-        <option value="Sneha">Sneha</option>
-    </select>
-
-    <label>Current Task:</label>
-    <input type="text" id="task" placeholder="e.g. Client Visit, Site Audit">
-
-    <button onclick="getLocation()" id="btnSubmit">Check In & Send Location</button>
+<div class="card">
+    <h2>📍 Secure Team Check-In</h2>
+    <p>Click below to verify your location and identity.</p>
+    <br>
+    <button onclick="getLocation()" id="btn">🚀 Get Location & Open Form</button>
     <p id="status"></p>
 </div>
 
 <script>
-    // ----------------------------------------------------
-    // PASTE YOUR GOOGLE SCRIPT URL INSIDE THE QUOTES BELOW
-    // ----------------------------------------------------
-    const SCRIPT_URL = "https://script.google.com/a/macros/brainwareuniversity.ac.in/s/AKfycbxsute8rniNBXKPt3jGbVtRszs_oNY5khnYaTvUabcKRrcmxHiuR7w5yt8Vy88Jc7DV/exec"; 
+    // ================= CONFIGURATION =================
+    // 1. Paste the base URL of your form (everything BEFORE the '?')
+    const FORM_URL = "https://docs.google.com/forms/d/e/YOUR_FORM_ID_HERE/viewform";
+
+    // 2. Paste the Entry IDs you found in Step 1
+    const LAT_ENTRY_ID = "entry.1679362457";  // Replace with your Latitude ID
+    const LONG_ENTRY_ID = "entry.1195079859"; // Replace with your Longitude ID
+    // =================================================
 
     function getLocation() {
         var status = document.getElementById("status");
-        var btn = document.getElementById("btnSubmit");
-        var name = document.getElementById("name").value;
-        var task = document.getElementById("task").value;
+        var btn = document.getElementById("btn");
 
-        if(!name || !task) {
-            status.innerHTML = "⚠️ Please select Name and Task.";
-            status.style.color = "red";
-            return;
-        }
-
-        status.innerHTML = "⏳ Getting GPS location...";
-        status.style.color = "blue";
+        status.innerHTML = "⏳ Acquiring GPS Satellites...";
         btn.disabled = true;
 
         if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    sendData(name, task, position.coords.latitude, position.coords.longitude);
-                },
-                (error) => {
-                    status.innerHTML = "❌ Error: Could not get location. Allow GPS access.";
-                    status.style.color = "red";
-                    btn.disabled = false;
-                },
-                { enableHighAccuracy: true } // Request best possible GPS
-            );
+            navigator.geolocation.getCurrentPosition(redirectWithData, showError, { enableHighAccuracy: true });
         } else {
             status.innerHTML = "❌ Geolocation is not supported by this browser.";
         }
     }
 
-    function sendData(name, task, lat, long) {
+    function redirectWithData(position) {
+        var lat = position.coords.latitude;
+        var long = position.coords.longitude;
+        
+        // Construct the Google Form URL with parameters
+        var finalUrl = `${FORM_URL}?${LAT_ENTRY_ID}=${lat}&${LONG_ENTRY_ID}=${long}`;
+
+        document.getElementById("status").innerHTML = "✅ Location Found! Redirecting...";
+        
+        // Redirect the user to the form
+        window.location.href = finalUrl;
+    }
+
+    function showError(error) {
         var status = document.getElementById("status");
-        status.innerHTML = "🚀 Sending data to Sheet...";
-
-        var data = JSON.stringify({ name: name, task: task, lat: lat, long: long });
-
-        fetch(SCRIPT_URL, {
-            method: "POST",
-            mode: "no-cors", // Important for Google Script
-            headers: { "Content-Type": "application/json" },
-            body: data
-        }).then(() => {
-            status.innerHTML = "✅ Check-in Successful! Data saved.";
-            status.style.color = "green";
-            document.getElementById("task").value = ""; // Clear task
-            document.getElementById("btnSubmit").disabled = false;
-        }).catch(error => {
-            console.error('Error:', error);
-            status.innerHTML = "❌ Failed to connect to server.";
-            status.style.color = "red";
-        });
+        var btn = document.getElementById("btn");
+        
+        switch(error.code) {
+            case error.PERMISSION_DENIED:
+                status.innerHTML = "❌ User denied the request for Geolocation.";
+                break;
+            case error.POSITION_UNAVAILABLE:
+                status.innerHTML = "❌ Location information is unavailable.";
+                break;
+            case error.TIMEOUT:
+                status.innerHTML = "❌ The request to get user location timed out.";
+                break;
+            case error.UNKNOWN_ERROR:
+                status.innerHTML = "❌ An unknown error occurred.";
+                break;
+        }
+        btn.disabled = false;
     }
 </script>
 
